@@ -1,0 +1,74 @@
+# .NET build output
+bin/
+obj/
+out/
+
+# .NET runtime artifacts
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+packages/
+
+# Publish output
+publish/
+PublishProfiles/
+
+# Entity Framework (not used, but guard against accidental addition)
+*.mdf
+*.ldf
+
+# Test results and coverage
+TestResults/
+coverage/
+*.trx
+*.coveragexml
+*.coverage
+lcov.info
+
+# Secrets and local config overrides
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+.env
+.env.*
+!.env.example
+
+# dotnet user-secrets
+%APPDATA%/Microsoft/UserSecrets/
+~/.microsoft/usersecrets/
+
+# Logs
+logs/
+*.log
+seq-data/
+
+# Docker
+docker-compose.override.yml
+
+# PostgreSQL local data volumes
+pgdata/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# JetBrains Rider (in case)
+.idea/
+*.sln.iml
