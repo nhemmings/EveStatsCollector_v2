@@ -116,6 +116,14 @@ Key components to document here:
 
 The SDE is a snapshot of the EVE universe (items, ships, regions, systems, stations, etc.) that changes only on game patches. This project will include tooling to fetch the latest SDE and populate the PostgreSQL database from it. The exact shape of that tooling is TBD.
 
+### Localisation
+
+The SDE provides names and descriptions in 8 languages. **Store English only** in all schema columns (`name`, `description`, etc.). The primary use case is LLM queries via MCP, which operates in English. If multi-language support is needed in future, add a JSONB translations column — do not change the existing column design.
+
+### Reference build
+
+The schema was designed against SDE build **3328718** (released 2026-05-01). The import tooling should record the build number in `sde_imports` on each successful run.
+
 Documentation: `https://developers.eveonline.com/docs/services/static-data/`
 
 ### Download URLs
