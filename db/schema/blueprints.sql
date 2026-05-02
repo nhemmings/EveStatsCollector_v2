@@ -8,10 +8,16 @@ CREATE TABLE blueprints (
 
 CREATE TABLE blueprint_activities (
     blueprint_type_id  INTEGER   NOT NULL REFERENCES blueprints,
-    activity           TEXT      NOT NULL,
+    activity           TEXT      NOT NULL CHECK (activity IN (
+                           'manufacturing', 'copying', 'invention', 'reaction',
+                           'research_material', 'research_time'
+                       )),
+    activity_id        SMALLINT  NOT NULL,
     time_seconds       INTEGER   NOT NULL,
     PRIMARY KEY (blueprint_type_id, activity)
 );
+
+COMMENT ON COLUMN blueprint_activities.activity_id IS 'ESI numeric activity ID. Mapping: manufacturing=1, research_time=3, research_material=4, copying=5, invention=8, reaction=11.';
 
 CREATE TABLE blueprint_materials (
     blueprint_type_id  INTEGER   NOT NULL,

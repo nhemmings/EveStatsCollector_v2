@@ -31,7 +31,7 @@ CREATE TABLE npc_corporations (
 
 COMMENT ON TABLE  npc_corporations            IS 'NPC corporations such as Caldari Navy, Sisters of EVE, and station owners. Not player corporations.';
 COMMENT ON COLUMN npc_corporations.extent     IS 'Geographic scope: G=global, N=national, R=regional, C=constellation, S=solarsystem, L=local.';
-COMMENT ON COLUMN npc_corporations.station_id IS 'Home NPC station. References npc_stations.station_id (enforced at import time).';
+COMMENT ON COLUMN npc_corporations.station_id IS 'Home NPC station. FK to npc_stations added as DEFERRABLE constraint at the end of this migration.';
 COMMENT ON COLUMN npc_corporations.enemy_id   IS 'Rival NPC corporation (self-referencing).';
 COMMENT ON COLUMN npc_corporations.friend_id  IS 'Allied NPC corporation (self-referencing).';
 COMMENT ON COLUMN npc_corporations.deleted    IS 'True for corporations that have been removed from the game.';
@@ -52,6 +52,7 @@ CREATE INDEX idx_npc_corporation_races_race_id ON npc_corporation_races(race_id)
 -- NPC stations — fixed, CCP-owned stations (not player-built structures).
 CREATE TABLE npc_stations (
     station_id                  INTEGER    PRIMARY KEY,
+    name                        TEXT,
     solar_system_id             INTEGER    NOT NULL REFERENCES solar_systems,
     type_id                     INTEGER    NOT NULL REFERENCES types,
     owner_id                    INTEGER    NOT NULL REFERENCES npc_corporations,
@@ -68,12 +69,34 @@ CREATE TABLE npc_stations (
     pos_z                       FLOAT8     NOT NULL
 );
 
-COMMENT ON TABLE  npc_stations                          IS 'Permanent NPC-owned stations (e.g. Jita 4-4, Amarr VIII). Player-built structures (Citadels) are tracked separately via the ESI API.';
-COMMENT ON COLUMN npc_stations.owner_id                 IS 'The NPC corporation that owns and operates this station.';
-COMMENT ON COLUMN npc_stations.reprocessing_efficiency  IS 'Base reprocessing yield (0.0–1.0). Actual yield depends on player skills and standings.';
+COMMENT ON TABLE  npc_stations                            IS 'Permanent NPC-owned stations (e.g. Jita 4-4, Amarr VIII). Player-built structures (Citadels) are tracked separately via the ESI API.';
+COMMENT ON COLUMN npc_stations.name                       IS 'Full station name (e.g. "Jita IV - Moon 4 - Caldari Navy Assembly Plant"). Not present in the SDE; populated from GET /universe/stations/{station_id}/.';
+COMMENT ON COLUMN npc_stations.owner_id                   IS 'The NPC corporation that owns and operates this station.';
+COMMENT ON COLUMN npc_stations.reprocessing_efficiency    IS 'Base reprocessing yield (0.0–1.0). Actual yield depends on player skills and standings.';
 COMMENT ON COLUMN npc_stations.reprocessing_stations_take IS 'Fraction of reprocessed minerals the station keeps as a fee.';
-COMMENT ON COLUMN npc_stations.orbit_id                 IS 'ID of the celestial body this station orbits (planet, moon, or asteroid belt).';
+COMMENT ON COLUMN npc_stations.orbit_id                   IS 'ID of the celestial body this station orbits (planet, moon, or asteroid belt).';
 
 CREATE INDEX idx_npc_stations_solar_system_id ON npc_stations(solar_system_id);
 CREATE INDEX idx_npc_stations_owner_id        ON npc_stations(owner_id);
 CREATE INDEX idx_npc_stations_type_id         ON npc_stations(type_id);
+
+-- Deferred FKs: back-references from factions → npc_corporations, and npc_corporations → npc_stations.
+-- factions and npc_corporations were created before their referenced tables existed;
+-- constraints are added here once all three tables are in place.
+ALTER TABLE factions
+    ADD CONSTRAINT fk_factions_corporation
+        FOREIGN KEY (corporation_id)
+        REFERENCES npc_corporations (corporation_id)
+        DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE factions
+    ADD CONSTRAINT fk_factions_militia_corporation
+        FOREIGN KEY (militia_corporation_id)
+        REFERENCES npc_corporations (corporation_id)
+        DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE npc_corporations
+    ADD CONSTRAINT fk_npc_corporations_station
+        FOREIGN KEY (station_id)
+        REFERENCES npc_stations (station_id)
+        DEFERRABLE INITIALLY DEFERRED;

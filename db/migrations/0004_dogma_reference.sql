@@ -12,12 +12,12 @@ COMMENT ON COLUMN dogma_units.display_name IS 'Short symbol shown in the UI (e.g
 
 -- Groupings for dogma attributes shown in the fitting window.
 CREATE TABLE dogma_attribute_categories (
-    category_id  SMALLINT  PRIMARY KEY,
-    name         TEXT      NOT NULL,
-    description  TEXT
+    dogma_category_id  SMALLINT  PRIMARY KEY,
+    name               TEXT      NOT NULL,
+    description        TEXT
 );
 
-COMMENT ON TABLE dogma_attribute_categories IS 'Groupings for dogma attributes as displayed in the EVE fitting and info windows.';
+COMMENT ON TABLE dogma_attribute_categories IS 'Groupings for dogma attributes as displayed in the EVE fitting and info windows. Note: dogma_category_id is unrelated to categories.category_id (item categories).';
 
 -- Attribute definitions — the schema for item statistics.
 CREATE TABLE dogma_attributes (
@@ -27,7 +27,7 @@ CREATE TABLE dogma_attributes (
     description            TEXT,
     tooltip_description    TEXT,
     tooltip_title          TEXT,
-    attribute_category_id  SMALLINT  REFERENCES dogma_attribute_categories,
+    dogma_category_id      SMALLINT  REFERENCES dogma_attribute_categories,
     unit_id                SMALLINT  REFERENCES dogma_units,
     data_type              SMALLINT  NOT NULL DEFAULT 0,
     default_value          FLOAT8,
@@ -38,14 +38,15 @@ CREATE TABLE dogma_attributes (
     display_when_zero      BOOLEAN   NOT NULL DEFAULT false
 );
 
-COMMENT ON TABLE  dogma_attributes                IS 'Definitions of all item attributes (e.g. "cpuOutput", "shieldCapacity"). Pair with type_dogma_attributes for actual per-type values.';
-COMMENT ON COLUMN dogma_attributes.name           IS 'Internal camelCase attribute name used in formulas (e.g. "cpuOutput", "maxTargetRange").';
-COMMENT ON COLUMN dogma_attributes.display_name   IS 'Human-readable English label shown in the EVE UI.';
-COMMENT ON COLUMN dogma_attributes.data_type      IS '0=boolean, 1=integer, 2=float, 3=long, 4=string, 9=float (legacy distinction).';
-COMMENT ON COLUMN dogma_attributes.high_is_good   IS 'True if a higher value is beneficial for the module owner.';
-COMMENT ON COLUMN dogma_attributes.stackable      IS 'False if stacking penalties apply when multiple instances of this attribute are active.';
+COMMENT ON TABLE  dogma_attributes                   IS 'Definitions of all item attributes (e.g. "cpuOutput", "shieldCapacity"). Pair with type_dogma_attributes for actual per-type values.';
+COMMENT ON COLUMN dogma_attributes.name              IS 'Internal camelCase attribute name used in formulas (e.g. "cpuOutput", "maxTargetRange").';
+COMMENT ON COLUMN dogma_attributes.display_name      IS 'Human-readable English label shown in the EVE UI.';
+COMMENT ON COLUMN dogma_attributes.data_type         IS '0=boolean, 1=integer, 2=float, 3=long, 4=string, 9=float (legacy distinction).';
+COMMENT ON COLUMN dogma_attributes.high_is_good      IS 'True if a higher value is beneficial for the module owner.';
+COMMENT ON COLUMN dogma_attributes.stackable         IS 'False if stacking penalties apply when multiple instances of this attribute are active.';
+COMMENT ON COLUMN dogma_attributes.dogma_category_id IS 'Grouping within dogma_attribute_categories. Unrelated to categories.category_id (item categories).';
 
-CREATE INDEX idx_dogma_attributes_category_id ON dogma_attributes(attribute_category_id);
+CREATE INDEX idx_dogma_attributes_dogma_category_id ON dogma_attributes(dogma_category_id);
 CREATE INDEX idx_dogma_attributes_published   ON dogma_attributes(published) WHERE published = true;
 
 -- Effect definitions — module activation behaviours (e.g. shield booster, weapon fire).

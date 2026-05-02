@@ -8,7 +8,7 @@ CREATE TABLE races (
 );
 
 COMMENT ON TABLE  races              IS 'Playable character races in EVE (Amarr, Caldari, Gallente, Minmatar, and NPC races).';
-COMMENT ON COLUMN races.ship_type_id IS 'The starter ship type associated with this race. References types.type_id (enforced at import time).';
+COMMENT ON COLUMN races.ship_type_id IS 'The starter ship type associated with this race. FK to types.type_id added as DEFERRABLE constraint in migration 0007.';
 
 -- Major NPC factions (Caldari State, Gallente Federation, Amarr Empire, etc.).
 CREATE TABLE factions (
@@ -25,9 +25,9 @@ CREATE TABLE factions (
 );
 
 COMMENT ON TABLE  factions                       IS 'Major NPC factions (e.g. "Caldari State", "Gallente Federation"). Used to classify regions, solar systems, NPC corporations, and contraband rules.';
-COMMENT ON COLUMN factions.solar_system_id       IS 'Capital solar system of this faction. References solar_systems.solar_system_id (enforced at import time).';
-COMMENT ON COLUMN factions.corporation_id        IS 'Primary NPC corporation for this faction. References npc_corporations.corporation_id (enforced at import time).';
-COMMENT ON COLUMN factions.militia_corporation_id IS 'Faction warfare militia corporation. References npc_corporations.corporation_id (enforced at import time).';
+COMMENT ON COLUMN factions.solar_system_id        IS 'Capital solar system. FK to solar_systems added as DEFERRABLE constraint in migration 0008.';
+COMMENT ON COLUMN factions.corporation_id         IS 'Primary NPC corporation. FK to npc_corporations added as DEFERRABLE constraint in migration 0009.';
+COMMENT ON COLUMN factions.militia_corporation_id IS 'Faction warfare militia corporation. FK to npc_corporations added as DEFERRABLE constraint in migration 0009.';
 
 -- Junction table: which races belong to each faction.
 CREATE TABLE faction_races (

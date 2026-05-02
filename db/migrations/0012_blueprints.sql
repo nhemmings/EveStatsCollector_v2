@@ -11,13 +11,22 @@ COMMENT ON COLUMN blueprints.max_production_limit  IS 'Maximum number of runs pe
 -- Individual activities available on each blueprint.
 CREATE TABLE blueprint_activities (
     blueprint_type_id  INTEGER   NOT NULL REFERENCES blueprints,
-    activity           TEXT      NOT NULL,
+    activity           TEXT      NOT NULL CHECK (activity IN (
+                                     'manufacturing',
+                                     'copying',
+                                     'invention',
+                                     'reaction',
+                                     'research_material',
+                                     'research_time'
+                                 )),
+    activity_id        SMALLINT  NOT NULL,
     time_seconds       INTEGER   NOT NULL,
     PRIMARY KEY (blueprint_type_id, activity)
 );
 
-COMMENT ON TABLE  blueprint_activities             IS 'Activities available on each blueprint, with their base time cost.';
-COMMENT ON COLUMN blueprint_activities.activity    IS 'Activity name: manufacturing, copying, invention, reaction, research_material, or research_time.';
+COMMENT ON TABLE  blueprint_activities              IS 'Activities available on each blueprint, with their base time cost.';
+COMMENT ON COLUMN blueprint_activities.activity     IS 'SDE activity name: manufacturing, copying, invention, reaction, research_material, or research_time.';
+COMMENT ON COLUMN blueprint_activities.activity_id  IS 'ESI numeric activity ID. Mapping: manufacturing=1, research_time=3, research_material=4, copying=5, invention=8, reaction=11. Use this column to join with ESI industry endpoints.';
 COMMENT ON COLUMN blueprint_activities.time_seconds IS 'Base duration of one run of this activity in seconds, before skill and structure bonuses.';
 
 -- Input materials consumed by each blueprint activity.

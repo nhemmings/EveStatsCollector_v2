@@ -89,3 +89,11 @@ COMMENT ON COLUMN stargates.type_id            IS 'Gate type (Empire, Faction, J
 
 CREATE INDEX idx_stargates_solar_system_id      ON stargates(solar_system_id);
 CREATE INDEX idx_stargates_dest_solar_system_id ON stargates(dest_solar_system_id);
+
+-- Deferred FK: factions.solar_system_id → solar_systems.
+-- factions was created in 0006 before solar_systems existed; constraint added here once the table is in place.
+ALTER TABLE factions
+    ADD CONSTRAINT fk_factions_solar_system
+        FOREIGN KEY (solar_system_id)
+        REFERENCES solar_systems (solar_system_id)
+        DEFERRABLE INITIALLY DEFERRED;

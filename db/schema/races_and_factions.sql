@@ -1,8 +1,9 @@
 -- Races, factions, and faction-race membership.
 -- Hand-maintained reference — never executed by DbUp.
 -- Note: races.ship_type_id and factions.solar_system_id / corporation_id /
--- militia_corporation_id are cross-migration references stored as plain INTEGER
--- (no FK constraint) to avoid circular dependency.
+-- militia_corporation_id have DEFERRABLE INITIALLY DEFERRED FK constraints
+-- added in migrations 0007, 0008, and 0009 respectively once the referenced
+-- tables exist. Shown here without those constraints for readability.
 
 CREATE TABLE races (
     race_id       SMALLINT  PRIMARY KEY,

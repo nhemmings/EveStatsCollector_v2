@@ -1,6 +1,8 @@
 -- NPC corporations and stations.
 -- Hand-maintained reference — never executed by DbUp.
--- Note: npc_corporations.station_id has no FK constraint (circular dep with npc_stations).
+-- Note: npc_corporations.station_id and factions.corporation_id / militia_corporation_id have
+-- DEFERRABLE INITIALLY DEFERRED FK constraints added in migration 0009 once all tables exist.
+-- Shown here without those constraints for readability.
 
 CREATE TABLE npc_corporations (
     corporation_id                 INTEGER    PRIMARY KEY,
@@ -40,6 +42,7 @@ CREATE TABLE npc_corporation_races (
 
 CREATE TABLE npc_stations (
     station_id                  INTEGER    PRIMARY KEY,
+    name                        TEXT,
     solar_system_id             INTEGER    NOT NULL REFERENCES solar_systems,
     type_id                     INTEGER    NOT NULL REFERENCES types,
     owner_id                    INTEGER    NOT NULL REFERENCES npc_corporations,

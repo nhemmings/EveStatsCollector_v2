@@ -43,3 +43,11 @@ CREATE INDEX idx_types_faction_id            ON types(faction_id)               
 CREATE INDEX idx_types_race_id               ON types(race_id)                   WHERE race_id                  IS NOT NULL;
 CREATE INDEX idx_types_variation_parent      ON types(variation_parent_type_id)  WHERE variation_parent_type_id IS NOT NULL;
 CREATE INDEX idx_types_name                  ON types(name);
+
+-- Deferred FK: races.ship_type_id → types.
+-- races was created in 0006 before types existed; constraint added here once types is in place.
+ALTER TABLE races
+    ADD CONSTRAINT fk_races_ship_type
+        FOREIGN KEY (ship_type_id)
+        REFERENCES types (type_id)
+        DEFERRABLE INITIALLY DEFERRED;

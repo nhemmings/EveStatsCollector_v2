@@ -9,9 +9,9 @@ CREATE TABLE dogma_units (
 );
 
 CREATE TABLE dogma_attribute_categories (
-    category_id  SMALLINT  PRIMARY KEY,
-    name         TEXT      NOT NULL,
-    description  TEXT
+    dogma_category_id  SMALLINT  PRIMARY KEY,
+    name               TEXT      NOT NULL,
+    description        TEXT
 );
 
 CREATE TABLE dogma_attributes (
@@ -21,7 +21,7 @@ CREATE TABLE dogma_attributes (
     description            TEXT,
     tooltip_description    TEXT,
     tooltip_title          TEXT,
-    attribute_category_id  SMALLINT  REFERENCES dogma_attribute_categories,
+    dogma_category_id      SMALLINT  REFERENCES dogma_attribute_categories,
     unit_id                SMALLINT  REFERENCES dogma_units,
     data_type              SMALLINT  NOT NULL DEFAULT 0,
     default_value          FLOAT8,
