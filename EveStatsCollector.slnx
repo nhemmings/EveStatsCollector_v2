@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="EveStatsCollector.App/EveStatsCollector.csproj" />
+  </Folder>
+</Solution>
