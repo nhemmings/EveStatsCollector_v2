@@ -1,3 +1,11 @@
+-- Minimal factions lookup — used to label region and constellation sovereignty.
+CREATE TABLE factions (
+    faction_id  INTEGER  PRIMARY KEY,
+    name        TEXT     NOT NULL
+);
+
+COMMENT ON TABLE factions IS 'NPC factions that control regions and constellations (e.g. "Caldari State", "Gallente Federation"). Minimal reference table used to label universe geography.';
+
 -- Universe regions (e.g. The Forge, Delve, Derelik).
 CREATE TABLE regions (
     region_id      INTEGER   PRIMARY KEY,
@@ -10,8 +18,8 @@ CREATE TABLE regions (
     pos_z          FLOAT8    NOT NULL
 );
 
-COMMENT ON TABLE  regions               IS 'Top-level geographic divisions of the EVE universe (e.g. "The Forge", "Delve", "Derelik"). Regions contain constellations.';
-COMMENT ON COLUMN regions.faction_id    IS 'Controlling NPC faction, if any. NULL for null-sec and wormhole regions.';
+COMMENT ON TABLE  regions                IS 'Top-level geographic divisions of the EVE universe (e.g. "The Forge", "Delve", "Derelik"). Regions contain constellations.';
+COMMENT ON COLUMN regions.faction_id     IS 'Controlling NPC faction, if any. NULL for null-sec and wormhole regions.';
 COMMENT ON COLUMN regions.wormhole_class IS 'Wormhole class (1–6) for wormhole regions; NULL for k-space.';
 COMMENT ON COLUMN regions.pos_x         IS 'X coordinate in metres (EVE universe coordinate system, FLOAT8 needed for scale).';
 
@@ -70,30 +78,28 @@ CREATE INDEX idx_solar_systems_region_id        ON solar_systems(region_id);
 CREATE INDEX idx_solar_systems_security_status  ON solar_systems(security_status);
 CREATE INDEX idx_solar_systems_name             ON solar_systems(name);
 
--- Stargates — jump connections between solar systems.
-CREATE TABLE stargates (
-    stargate_id           INTEGER   PRIMARY KEY,
-    solar_system_id       INTEGER   NOT NULL REFERENCES solar_systems,
-    dest_solar_system_id  INTEGER   NOT NULL REFERENCES solar_systems,
-    dest_stargate_id      INTEGER   NOT NULL,
-    type_id               INTEGER   NOT NULL REFERENCES types,
-    pos_x                 FLOAT8    NOT NULL,
-    pos_y                 FLOAT8    NOT NULL,
-    pos_z                 FLOAT8    NOT NULL
-);
+-- v_solar_systems: systems with region/constellation context and security banding.
+CREATE VIEW v_solar_systems AS
+SELECT
+    ss.solar_system_id,
+    ss.name,
+    ss.security_status,
+    ss.security_class,
+    CASE
+        WHEN ss.solar_system_id BETWEEN 31000000 AND 31999999 THEN 'wormhole'
+        WHEN ss.solar_system_id >= 32000000                   THEN 'abyssal'
+        WHEN ss.security_status >= 0.45                       THEN 'high-sec'
+        WHEN ss.security_status >  0.0                        THEN 'low-sec'
+        ELSE                                                       'null-sec'
+    END                AS space_type,
+    c.constellation_id,
+    c.name             AS constellation_name,
+    rg.region_id,
+    rg.name            AS region_name,
+    f.name             AS faction_name
+FROM       solar_systems  ss
+JOIN       constellations c   ON c.constellation_id = ss.constellation_id
+JOIN       regions        rg  ON rg.region_id        = ss.region_id
+LEFT JOIN  factions       f   ON f.faction_id        = rg.faction_id;
 
-COMMENT ON TABLE  stargates                    IS 'Stargate connections between solar systems. Each gate has a paired partner in the destination system.';
-COMMENT ON COLUMN stargates.dest_stargate_id   IS 'The partner stargate ID in the destination system.';
-COMMENT ON COLUMN stargates.dest_solar_system_id IS 'Destination solar system. With solar_system_id, forms a directed edge in the jump graph.';
-COMMENT ON COLUMN stargates.type_id            IS 'Gate type (Empire, Faction, Jovian, etc.) which affects its visual appearance.';
-
-CREATE INDEX idx_stargates_solar_system_id      ON stargates(solar_system_id);
-CREATE INDEX idx_stargates_dest_solar_system_id ON stargates(dest_solar_system_id);
-
--- Deferred FK: factions.solar_system_id → solar_systems.
--- factions was created in 0006 before solar_systems existed; constraint added here once the table is in place.
-ALTER TABLE factions
-    ADD CONSTRAINT fk_factions_solar_system
-        FOREIGN KEY (solar_system_id)
-        REFERENCES solar_systems (solar_system_id)
-        DEFERRABLE INITIALLY DEFERRED;
+COMMENT ON VIEW v_solar_systems IS 'Solar systems with constellation, region, faction, and a human-readable space_type label (high-sec / low-sec / null-sec / wormhole / abyssal).';

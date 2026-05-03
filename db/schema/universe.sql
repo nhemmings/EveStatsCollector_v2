@@ -1,5 +1,10 @@
--- Universe geography: regions, constellations, solar systems, stargates.
+-- Universe geography: factions, regions, constellations, solar systems.
 -- Hand-maintained reference — never executed by DbUp.
+
+CREATE TABLE factions (
+    faction_id  INTEGER  PRIMARY KEY,
+    name        TEXT     NOT NULL
+);
 
 CREATE TABLE regions (
     region_id      INTEGER   PRIMARY KEY,
@@ -42,15 +47,4 @@ CREATE TABLE solar_systems (
     pos_x             FLOAT8    NOT NULL,
     pos_y             FLOAT8    NOT NULL,
     pos_z             FLOAT8    NOT NULL
-);
-
-CREATE TABLE stargates (
-    stargate_id           INTEGER   PRIMARY KEY,
-    solar_system_id       INTEGER   NOT NULL REFERENCES solar_systems,
-    dest_solar_system_id  INTEGER   NOT NULL REFERENCES solar_systems,
-    dest_stargate_id      INTEGER   NOT NULL,
-    type_id               INTEGER   NOT NULL REFERENCES types,
-    pos_x                 FLOAT8    NOT NULL,
-    pos_y                 FLOAT8    NOT NULL,
-    pos_z                 FLOAT8    NOT NULL
 );
