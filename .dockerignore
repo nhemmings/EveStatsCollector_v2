@@ -1,0 +1,12 @@
+**/.git
+**/bin
+**/obj
+.env
+.env.*
+!.env.example
+**/*.user
+.vs
+.vscode
+.idea
+**/TestResults
+pgdata

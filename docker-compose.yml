@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: EveStatsCollector.App/Dockerfile
+    env_file: .env
+    environment:
+      # Override connection strings: 'db' is the service name on the Docker network
+      ConnectionStrings__EveStatsMigrations: >-
+        Host=db;Port=5432;Database=eve_stats;Username=postgres;Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__EveStats: >-
+        Host=db;Port=5432;Database=eve_stats;Username=eve_stats_app;Password=${APP_PASSWORD}
+      ConnectionStrings__EveStatsReadonly: >-
+        Host=db;Port=5432;Database=eve_stats;Username=eve_stats_readonly;Password=${READONLY_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
