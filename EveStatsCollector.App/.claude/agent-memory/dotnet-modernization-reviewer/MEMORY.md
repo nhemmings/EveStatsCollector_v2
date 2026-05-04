@@ -1,0 +1,1 @@
+- [.NET / C# version in use](project_dotnet_version.md) — net10.0, nullable+implicit usings on; assume C# 12/13 features and .NET 8+ APIs are available
