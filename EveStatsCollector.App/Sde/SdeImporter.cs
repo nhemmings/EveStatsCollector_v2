@@ -43,11 +43,11 @@ internal sealed class SdeImporter(
         foreach (var line in content.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             using var doc = JsonDocument.Parse(line);
-            // latest.jsonl has one JSON object per resource type; the SDE record has a "sde" key at the root
-            if (!doc.RootElement.TryGetProperty("sde", out var sde)) continue;
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("_key", out var key) || key.GetString() != "sde") continue;
 
-            var build = sde.GetProperty("build").GetInt32();
-            var releaseDate = sde.GetProperty("releaseDate").GetDateTimeOffset();
+            var build = root.GetProperty("buildNumber").GetInt32();
+            var releaseDate = root.GetProperty("releaseDate").GetDateTimeOffset();
             return (build, releaseDate);
         }
 
@@ -160,7 +160,7 @@ internal sealed class SdeImporter(
             VALUES (@FactionId, @FactionName)
             ON CONFLICT (faction_id) DO UPDATE SET name = EXCLUDED.name
             """,
-            factions.Select(f => new { f.FactionId, f.FactionName }),
+            factions.Select(f => new { f.FactionId, FactionName = f.Name.En ?? throw new InvalidOperationException($"Faction {f.FactionId} has no English name") }),
             transaction: tx);
 
         await conn.ExecuteAsync(
@@ -177,8 +177,8 @@ internal sealed class SdeImporter(
             """,
             regions.Select(r =>
             {
-                var c = r.Center ?? throw new InvalidOperationException($"Region {r.RegionId} '{r.RegionName}' has no center coordinates");
-                return new { r.RegionId, Name = r.RegionName, r.FactionId, r.WormholeClass, PosX = c[0], PosY = c[1], PosZ = c[2] };
+                var pos = r.Position ?? throw new InvalidOperationException($"Region {r.Id} has no position");
+                return new { RegionId = r.Id, Name = r.Name.En ?? throw new InvalidOperationException($"Region {r.Id} has no English name"), r.FactionId, r.WormholeClass, PosX = pos.X, PosY = pos.Y, PosZ = pos.Z };
             }),
             transaction: tx);
 
@@ -197,8 +197,8 @@ internal sealed class SdeImporter(
             """,
             constellations.Select(c =>
             {
-                var pos = c.Center ?? throw new InvalidOperationException($"Constellation {c.ConstellationId} '{c.ConstellationName}' has no center coordinates");
-                return new { c.ConstellationId, c.RegionId, Name = c.ConstellationName, c.FactionId, c.WormholeClass, PosX = pos[0], PosY = pos[1], PosZ = pos[2] };
+                var pos = c.Position ?? throw new InvalidOperationException($"Constellation {c.Id} has no position");
+                return new { ConstellationId = c.Id, c.RegionId, Name = c.Name.En ?? throw new InvalidOperationException($"Constellation {c.Id} has no English name"), c.FactionId, c.WormholeClass, PosX = pos.X, PosY = pos.Y, PosZ = pos.Z };
             }),
             transaction: tx);
 
@@ -235,16 +235,16 @@ internal sealed class SdeImporter(
             """,
             solarSystems.Select(s =>
             {
-                var pos = s.Center ?? throw new InvalidOperationException($"Solar system {s.SolarSystemId} '{s.SolarSystemName}' has no center coordinates");
+                var pos = s.Position ?? throw new InvalidOperationException($"Solar system {s.Id} has no position");
                 return new
                 {
-                    s.SolarSystemId,
+                    SolarSystemId   = s.Id,
                     s.ConstellationId,
                     s.RegionId,
-                    Name            = s.SolarSystemName,
-                    SecurityStatus  = s.Security,
+                    Name            = s.Name.En ?? throw new InvalidOperationException($"Solar system {s.Id} has no English name"),
+                    s.SecurityStatus,
                     s.SecurityClass,
-                    StarId          = s.Star?.Id,
+                    s.StarId,
                     s.Luminosity,
                     s.Radius,
                     s.IsBorder,
@@ -253,9 +253,9 @@ internal sealed class SdeImporter(
                     s.IsHub,
                     s.IsInternational,
                     s.IsRegional,
-                    PosX            = pos[0],
-                    PosY            = pos[1],
-                    PosZ            = pos[2],
+                    PosX            = pos.X,
+                    PosY            = pos.Y,
+                    PosZ            = pos.Z,
                 };
             }),
             transaction: tx);

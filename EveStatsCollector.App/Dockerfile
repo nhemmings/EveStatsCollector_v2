@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY EveStatsCollector.App/EveStatsCollector.csproj EveStatsCollector.App/
+COPY EveStatsCollector.App/ EveStatsCollector.App/
+COPY db/migrations/ db/migrations/
 RUN dotnet restore EveStatsCollector.App/EveStatsCollector.csproj
 RUN dotnet publish EveStatsCollector.App/EveStatsCollector.csproj \
     -c Release -o /app/publish
