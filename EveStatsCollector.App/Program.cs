@@ -1,6 +1,8 @@
 using DbUp;
 using EveStatsCollector;
-using EveStatsCollector.Sde;
+using EveStatsCollector.Esi;
+using EveStatsCollector.StaticData;
+using EveStatsCollector.Universe;
 using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -32,13 +34,15 @@ try
             .AddHttpClientInstrumentation()
             .AddOtlpExporter());
 
-    // ESI HTTP client — User-Agent and base address only; rate-limiting middleware added later
+    // ESI HTTP client with rate-limit tracking and resilience pipeline
+    builder.Services.AddTransient<EsiRateLimitHandler>();
     var esi = builder.Configuration.GetSection("Esi");
     builder.Services.AddHttpClient("Esi", client =>
     {
         client.BaseAddress = new Uri(esi["BaseUrl"]!);
         client.DefaultRequestHeaders.UserAgent.ParseAdd(esi["UserAgent"]!);
-    });
+    })
+    .AddEsiResilience();
 
     // SDE HTTP client — used for metadata checks and large zip downloads (~100 MB)
     builder.Services.AddHttpClient("Sde", client =>
@@ -51,8 +55,13 @@ try
     builder.Services.AddSingleton(
         NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("EveStats")!));
 
-    builder.Services.AddSingleton<SdeImporter>();
-    builder.Services.AddHostedService<SdeImportService>();
+    builder.Services.AddStaticData();
+    builder.Services.AddSingleton<UniverseService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<UniverseService>());
+    builder.Services.AddSingleton<SystemJumpsCollector>();
+    builder.Services.AddHostedService<SystemJumpsService>();
+    builder.Services.AddSingleton<SystemKillsCollector>();
+    builder.Services.AddHostedService<SystemKillsService>();
     builder.Services.AddHostedService<Worker>();
 
     // Run DbUp migrations synchronously before starting the host

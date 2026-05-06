@@ -104,17 +104,65 @@ Prefer views over raw tables when the natural query shape involves a join or cal
 
 ## Architecture
 
-<!-- TODO: Fill in once structure is established -->
+### Startup sequence
 
-Key components to document here:
-- **ESI client** — how API authentication (OAuth2/SSO) and rate limiting are handled
-- **Data models** — schema for stats stored/processed
-- **Storage layer** — where and how data is persisted (DB, files, etc.)
-- **Scheduler** — how periodic collection is triggered (cron, APScheduler, etc.)
+Startup is strictly ordered and must remain so:
+
+1. **DbUp migrations** run synchronously in `Program.cs` before `builder.Build()`. The host does not start until all migrations succeed.
+2. **`UniverseService.StartAsync`** runs next (overrides `BackgroundService.StartAsync`). It runs the SDE import check and loads all universe ID caches into memory before calling `base.StartAsync`. The host does not start any other `IHostedService` until this completes.
+3. **All other hosted services** (`SystemJumpsService`, future collectors) start after `UniverseService` is fully initialised and the caches are populated.
+
+**Registration order in `Program.cs` enforces step 2.** `UniverseService` must be registered before any collector service:
+
+```csharp
+builder.Services.AddSingleton<UniverseService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<UniverseService>());
+// collector services registered after
+builder.Services.AddSingleton<SystemJumpsCollector>();
+builder.Services.AddHostedService<SystemJumpsService>();
+```
+
+The singleton + factory pattern (`AddSingleton<T>` + `AddHostedService(sp => sp.GetRequiredService<T>())`) is required for any hosted service that must also be injectable as a regular dependency.
+
+### UniverseService
+
+`UniverseService` is the single source of truth for static universe IDs. It owns the SDE import lifecycle and exposes in-memory caches that collectors use for FK filtering — no DB round-trip per collection tick.
+
+- **Caches:** `SolarSystemIds`, `ConstellationIds`, `RegionIds` — each a `volatile FrozenSet<int>`.
+- **Thread safety:** `volatile` ensures the reference swap is visible across threads immediately. `FrozenSet<int>` is immutable after construction, so readers always see a complete consistent snapshot.
+- **Refresh cycle:** 24-hour `PeriodicTimer` in `ExecuteAsync` re-runs the SDE check and reloads caches.
+- **Error isolation:** SDE import failures and cache load failures are caught and logged; the service continues running on stale data rather than crashing.
+
+Collectors inject `UniverseService` directly and call `universeService.SolarSystemIds.Contains(id)`.
+
+### Static data import — `StaticData/` namespace
+
+The `StaticData` folder (namespace `EveStatsCollector.StaticData`) contains the full pipeline for importing EVE's Static Data Export (SDE). Register all services via the extension method:
+
+```csharp
+builder.Services.AddStaticData();
+```
+
+The pipeline is split across focused classes — one responsibility each:
+
+| Class | Responsibility |
+|---|---|
+| `StaticDataBuildChecker` | Fetches `latest.jsonl` from the SDE API; compares build number against `sde_imports` in the DB |
+| `StaticDataDownloader` | Streams the SDE zip archive to a local temp file |
+| `StaticDataExtractor` | Extracts only the needed JSONL files from the zip (static class) |
+| `StaticDataParser` | Deserialises JSONL lines into typed records (static class) |
+| `StaticDataRepository` | Upserts factions, regions, constellations, solar systems, and records the import in `sde_imports` |
+| `StaticDataImporter` | Orchestrates the pipeline; exposes `RunIfOutdatedAsync` consumed by `UniverseService` |
+
+When adding new namespaces or service groups (e.g. `Esi/`, future `Market/`), follow the same pattern: an `IServiceCollection` extension method (e.g. `AddStaticData()`) that encapsulates all registrations for that group.
+
+### ESI collectors
+
+Each ESI endpoint gets a dedicated collector class (e.g. `SystemJumpsCollector`) and a `BackgroundService` wrapper (e.g. `SystemJumpsService`) that drives the scheduling loop. The service respects the ESI `Expires` header: it delays until `expires - now` after each collection rather than using a fixed `PeriodicTimer`.
 
 ## Static Data Export (SDE)
 
-The SDE is a snapshot of the EVE universe (items, ships, regions, systems, stations, etc.) that changes only on game patches. This project will include tooling to fetch the latest SDE and populate the PostgreSQL database from it. The exact shape of that tooling is TBD.
+The SDE is a snapshot of the EVE universe (items, ships, regions, systems, stations, etc.) that changes only on game patches. Import tooling lives in `EveStatsCollector.App/StaticData/` — see the Architecture section for the class breakdown. The import runs automatically on startup and every 24 hours thereafter via `UniverseService`.
 
 ### Localisation
 
@@ -218,7 +266,7 @@ When this limit is exceeded ESI returns **420**. The middleware must back off im
 
 #### Retries — Polly
 
-Use **Polly** (via `Microsoft.Extensions.Http.Polly`) for all retry logic. Register policies through `IHttpClientBuilder` when wiring up the typed `HttpClient`.
+Use **Polly** (via `Microsoft.Extensions.Http.Resilience` — the .NET 10-recommended Polly v8 wrapper; `Microsoft.Extensions.Http.Polly` is deprecated) for all retry logic. Register policies through `IHttpClientBuilder` when wiring up the typed `HttpClient`.
 
 Retry policy rules:
 - Retry on transient failures: 5xx responses and network errors (`HttpRequestException`).
