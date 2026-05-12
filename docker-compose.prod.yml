@@ -38,50 +38,28 @@ services:
     volumes:
       - seqdata:/data
 
-  librechat:
-    build:
-      context: .
-      dockerfile: Dockerfile.librechat
+  api:
+    image: 192.168.0.68:5000/evestatscollector-api:latest
     restart: unless-stopped
-    ports:
-      - "3080:3080"
-    volumes:
-      - ./librechat.yaml:/app/librechat.yaml:ro
-      - librechat_images:/app/client/public/images
-      - librechat_uploads:/app/api/data/uploads
-      - librechat_logs:/app/api/logs
     environment:
-      MONGO_URI: mongodb://mongodb:27017/LibreChat
-      DOMAIN_CLIENT: ${LIBRECHAT_DOMAIN}
-      DOMAIN_SERVER: ${LIBRECHAT_DOMAIN}
-      JWT_SECRET: ${LIBRECHAT_JWT_SECRET}
-      JWT_REFRESH_SECRET: ${LIBRECHAT_JWT_REFRESH_SECRET}
-      CREDS_KEY: ${LIBRECHAT_CREDS_KEY}
-      CREDS_IV: ${LIBRECHAT_CREDS_IV}
-      ALLOW_REGISTRATION: "true"
-      GOOGLE_AUTH_ENABLED: "false"
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      READONLY_PASSWORD: ${READONLY_PASSWORD}
+      ConnectionStrings__EveStatsReadonly: >-
+        Host=${POSTGRES_HOST};Port=5432;Database=eve_stats;Username=eve_stats_readonly;Password=${READONLY_PASSWORD}
+      Serilog__WriteTo__1__Name: Seq
+      Serilog__WriteTo__1__Args__serverUrl: http://seq
+      OpenTelemetry__OtlpEndpoint: http://seq/ingest/otlp
+    ports:
+      - "8080:8080"
     depends_on:
-      - mongodb
-
-  mongodb:
-    image: mongo:8.0
-    restart: unless-stopped
-    volumes:
-      - mongodb_data:/data/db
+      seq:
+        condition: service_started
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
-      - librechat
+      - api
 
 volumes:
   registrydata:
   seqdata:
-  librechat_images:
-  librechat_uploads:
-  librechat_logs:
-  mongodb_data:

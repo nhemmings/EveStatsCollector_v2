@@ -46,41 +46,25 @@ services:
       seq:
         condition: service_started
 
-  librechat:
-    image: ghcr.io/danny-avila/librechat:latest
-    restart: unless-stopped
-    ports:
-      - "3080:3080"
-    volumes:
-      - ./librechat.yaml:/app/librechat.yaml:ro
-      - librechat_images:/app/client/public/images
-      - librechat_uploads:/app/api/data/uploads
-      - librechat_logs:/app/api/logs
+  api:
+    build:
+      context: .
+      dockerfile: EveStatsCollector.Api/Dockerfile
+    env_file: .env
     environment:
-      MONGO_URI: mongodb://mongodb:27017/LibreChat
-      DOMAIN_CLIENT: ${LIBRECHAT_DOMAIN}
-      DOMAIN_SERVER: ${LIBRECHAT_DOMAIN}
-      JWT_SECRET: ${LIBRECHAT_JWT_SECRET}
-      JWT_REFRESH_SECRET: ${LIBRECHAT_JWT_REFRESH_SECRET}
-      CREDS_KEY: ${LIBRECHAT_CREDS_KEY}
-      CREDS_IV: ${LIBRECHAT_CREDS_IV}
-      ALLOW_REGISTRATION: "true"
-      READONLY_PASSWORD: ${READONLY_PASSWORD}
-      POSTGRES_HOST: ${POSTGRES_HOST}
+      ConnectionStrings__EveStatsReadonly: >-
+        Host=db;Port=5432;Database=eve_stats;Username=eve_stats_readonly;Password=${READONLY_PASSWORD}
+      Serilog__WriteTo__1__Name: Seq
+      Serilog__WriteTo__1__Args__serverUrl: http://seq
+      OpenTelemetry__OtlpEndpoint: http://seq/ingest/otlp
+    ports:
+      - "8080:8080"
     depends_on:
-      - mongodb
-      - db
-
-  mongodb:
-    image: mongo:8.0
-    restart: unless-stopped
-    volumes:
-      - mongodb_data:/data/db
+      db:
+        condition: service_healthy
+      seq:
+        condition: service_started
 
 volumes:
   pgdata:
   seqdata:
-  librechat_images:
-  librechat_uploads:
-  librechat_logs:
-  mongodb_data:
