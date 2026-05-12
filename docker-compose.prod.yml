@@ -1,20 +1,35 @@
 services:
-  db:
-    image: postgres:17
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  registry:
+    image: registry:2
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5000:5000"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - registrydata:/var/lib/registry
+
+  app:
+    image: 192.168.0.68:5000/evestatscollector:latest
+    restart: unless-stopped
+    environment:
+      # External LXC postgres — POSTGRES_HOST is its static IP
+      ConnectionStrings__EveStatsMigrations: >-
+        Host=${POSTGRES_HOST};Port=5432;Database=eve_stats;Username=postgres;Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__EveStats: >-
+        Host=${POSTGRES_HOST};Port=5432;Database=eve_stats;Username=eve_stats_app;Password=${APP_PASSWORD}
+      ConnectionStrings__EveStatsReadonly: >-
+        Host=${POSTGRES_HOST};Port=5432;Database=eve_stats;Username=eve_stats_readonly;Password=${READONLY_PASSWORD}
+      DbMigrations__AppPassword: ${APP_PASSWORD}
+      DbMigrations__ReadonlyPassword: ${READONLY_PASSWORD}
+      Serilog__WriteTo__1__Name: Seq
+      Serilog__WriteTo__1__Args__serverUrl: http://seq
+      OpenTelemetry__OtlpEndpoint: http://seq/ingest/otlp
+    depends_on:
+      seq:
+        condition: service_started
 
   seq:
     image: datalust/seq:latest
+    restart: unless-stopped
     environment:
       ACCEPT_EULA: Y
       SEQ_FIRSTRUN_NOAUTHENTICATION: true
@@ -23,31 +38,10 @@ services:
     volumes:
       - seqdata:/data
 
-  app:
+  librechat:
     build:
       context: .
-      dockerfile: EveStatsCollector.App/Dockerfile
-    env_file: .env
-    environment:
-      # Override connection strings: 'db' is the service name on the Docker network
-      ConnectionStrings__EveStatsMigrations: >-
-        Host=db;Port=5432;Database=eve_stats;Username=postgres;Password=${POSTGRES_PASSWORD}
-      ConnectionStrings__EveStats: >-
-        Host=db;Port=5432;Database=eve_stats;Username=eve_stats_app;Password=${APP_PASSWORD}
-      ConnectionStrings__EveStatsReadonly: >-
-        Host=db;Port=5432;Database=eve_stats;Username=eve_stats_readonly;Password=${READONLY_PASSWORD}
-      # Seq is on the Docker network at http://seq (port 80 inside the network)
-      Serilog__WriteTo__1__Name: Seq
-      Serilog__WriteTo__1__Args__serverUrl: http://seq
-      OpenTelemetry__OtlpEndpoint: http://seq/ingest/otlp
-    depends_on:
-      db:
-        condition: service_healthy
-      seq:
-        condition: service_started
-
-  librechat:
-    image: ghcr.io/danny-avila/librechat:latest
+      dockerfile: Dockerfile.librechat
     restart: unless-stopped
     ports:
       - "3080:3080"
@@ -65,11 +59,11 @@ services:
       CREDS_KEY: ${LIBRECHAT_CREDS_KEY}
       CREDS_IV: ${LIBRECHAT_CREDS_IV}
       ALLOW_REGISTRATION: "true"
-      READONLY_PASSWORD: ${READONLY_PASSWORD}
+      GOOGLE_AUTH_ENABLED: "false"
       POSTGRES_HOST: ${POSTGRES_HOST}
+      READONLY_PASSWORD: ${READONLY_PASSWORD}
     depends_on:
       - mongodb
-      - db
 
   mongodb:
     image: mongo:8.0
@@ -77,8 +71,15 @@ services:
     volumes:
       - mongodb_data:/data/db
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - librechat
+
 volumes:
-  pgdata:
+  registrydata:
   seqdata:
   librechat_images:
   librechat_uploads:

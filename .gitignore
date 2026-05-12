@@ -72,3 +72,6 @@ desktop.ini
 # JetBrains Rider (in case)
 .idea/
 *.sln.iml
+
+# Claude Code local session settings
+.claude/

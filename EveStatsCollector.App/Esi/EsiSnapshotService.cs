@@ -1,5 +1,7 @@
 namespace EveStatsCollector.Esi;
 
+using System.Diagnostics;
+
 internal abstract class EsiSnapshotService<TCollector>(TCollector collector, ILogger logger)
     : BackgroundService
     where TCollector : IEsiCollector
@@ -23,6 +25,8 @@ internal abstract class EsiSnapshotService<TCollector>(TCollector collector, ILo
 
     private async Task<DateTimeOffset> TryCollectAsync(CancellationToken ct)
     {
+        using var activity = EsiTelemetry.ActivitySource.StartActivity(EntityName, ActivityKind.Internal);
+        activity?.SetTag("esi.entity", EntityName);
         try
         {
             return await collector.CollectAsync(ct);
@@ -33,6 +37,7 @@ internal abstract class EsiSnapshotService<TCollector>(TCollector collector, ILo
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "{Entity} collection failed", EntityName);
             return DateTimeOffset.UtcNow + TimeSpan.FromHours(1);
         }

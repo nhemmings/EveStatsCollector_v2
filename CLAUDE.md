@@ -81,27 +81,6 @@ DeployChanges.To
 
 ---
 
-## LLM data access — MCP
-
-End users will query and analyse EVE stats via an LLM connected to the database through Microsoft's generic SQL MCP server. The MCP server connects as `eve_stats_readonly` (SELECT-only, no write access).
-
-### Design guidance
-
-Because an LLM reads the schema to reason about queries, every migration that adds a table or non-obvious column should also add SQL comments:
-
-```sql
-COMMENT ON TABLE  market_orders         IS 'Open and recently filled market orders scraped from ESI.';
-COMMENT ON COLUMN market_orders.is_buy  IS 'True = buy order, false = sell order.';
-```
-
-Prefer views over raw tables when the natural query shape involves a join or calculation — a view named `active_buy_orders_by_system` is far more discoverable than a join the LLM has to invent. Add these views as part of the same migration that creates the underlying tables, and add a corresponding file under `db/schema/views/`.
-
-### What NOT to expose
-
-`SchemaVersions` (DbUp's internal journal) and any secrets or credentials tables should be excluded from the MCP server's connection or hidden behind a view that omits them. The `eve_stats_readonly` role grants SELECT on all public schema objects by default privilege, so if a table should not be queryable by the LLM, create it in a separate schema and do not grant access to `eve_stats_readonly`.
-
----
-
 ## Architecture
 
 ### Startup sequence
@@ -166,7 +145,7 @@ The SDE is a snapshot of the EVE universe (items, ships, regions, systems, stati
 
 ### Localisation
 
-The SDE provides names and descriptions in 8 languages. **Store English only** in all schema columns (`name`, `description`, etc.). The primary use case is LLM queries via MCP, which operates in English. If multi-language support is needed in future, add a JSONB translations column — do not change the existing column design.
+The SDE provides names and descriptions in 8 languages. **Store English only** in all schema columns (`name`, `description`, etc.). If multi-language support is needed in future, add a JSONB translations column — do not change the existing column design.
 
 ### Reference build
 
@@ -279,3 +258,20 @@ Retry policy rules:
 
 - Distribute requests evenly over time — avoid bursting; spread calls across the cache window.
 - Do not retry 4xx errors without fixing the underlying cause (each costs 5 tokens).
+
+---
+
+## Deferred — LLM / MCP access
+
+**Status: paused as of 2026-05-12.** Local models (qwen2.5:14b, qwen3:14b) were unreliable at tool calling and reasoning on this hardware. This work is shelved until a more capable local model is available or an alternative approach is found.
+
+Full notes on what was tried (chat UIs, models, MCP servers, chart rendering) are in the memory file `ai_stack_trials.md`.
+
+### Schema design notes to keep in mind for future resumption
+
+When LLM access is revisited, the database schema should already be LLM-friendly:
+
+- Add `COMMENT ON TABLE` / `COMMENT ON COLUMN` to every non-obvious table and column in migrations.
+- Prefer views for common join/calculation shapes — a view named `active_buy_orders_by_system` is more discoverable than a raw join.
+- `SchemaVersions` (DbUp journal) and any credentials tables must be excluded from the readonly role or created in a separate schema.
+- The `eve_stats_readonly` role (SELECT-only) is the intended MCP connection user.

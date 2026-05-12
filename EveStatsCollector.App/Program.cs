@@ -4,7 +4,7 @@ using EveStatsCollector.Esi;
 using EveStatsCollector.StaticData;
 using EveStatsCollector.Universe;
 using Npgsql;
-using OpenTelemetry.Metrics;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -23,16 +23,21 @@ try
         .ReadFrom.Configuration(builder.Configuration)
         .Enrich.FromLogContext());
 
-    // Telemetry — OTLP endpoint read from OTEL_EXPORTER_OTLP_ENDPOINT (default: localhost:4317)
+    // Telemetry — traces sent to Seq via OTLP/HTTP (endpoint from OpenTelemetry:OtlpEndpoint config)
+    var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
     builder.Services
         .AddOpenTelemetry()
         .ConfigureResource(r => r.AddService("EveStatsCollector"))
         .WithTracing(t => t
             .AddHttpClientInstrumentation()
-            .AddOtlpExporter())
-        .WithMetrics(m => m
-            .AddHttpClientInstrumentation()
-            .AddOtlpExporter());
+            .AddSource("EveStatsCollector.Esi")
+            .AddSource("Npgsql")
+            .AddOtlpExporter(o =>
+            {
+                o.Protocol = OtlpExportProtocol.HttpProtobuf;
+                if (otlpEndpoint is not null)
+                    o.Endpoint = new Uri(otlpEndpoint);
+            }));
 
     // ESI HTTP client with rate-limit tracking and resilience pipeline
     builder.Services.AddTransient<EsiRateLimitHandler>();
